@@ -21,7 +21,6 @@ function M.update(dt)
 end
 
 function M.draw(pass)
-  pass:setColor(1, 1, 1, 1)
   pass:text("Now you are in the MENU", 0, 2, -10)
   pass:text("something is " .. something, 0, 1, -10)
 end

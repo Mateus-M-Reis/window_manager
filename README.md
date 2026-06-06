@@ -11,28 +11,61 @@ A lightweight, efficient scene/screen manager for **LÖVR**, designed for seamle
 
 ## 🛠️ Installation
 
-Simply copy the `init.lua` (or `window_manager.lua`) file into your project folder. We recommend using it as a module:
+Simply drop the module into your `lib/` folder or whatever directory you prefer.
 
 ```lua
-local wm = require 'window_manager.init'
-
+local window_manager = require 'lib.window_manager'
 ```
 
 ## 🎮 Usage
 
 ### 1. Registering Scenes
 
+Register scenes with `window_manager.register('scene_name', require 'path.to.scene')`
+
+```lua
+-- main.lua
+local window_manager = require'lib.window_manager'
+
+function lovr.load()
+  window_manager.register('intro', require 'src.intro')
+  window_manager.register('menu', require 'src.menu')
+  window_manager.register('level', require 'src.level')
+  window_manager.switch('intro')
+end
+
+function lovr.update(dt)
+  window_manager.update(dt)
+end
+
+function lovr.draw(pass)
+  window_manager.draw(pass)
+end
+```
+
 Each scene is a Lua module with optional lifecycle functions (`load`, `update`, `draw`, `exit`).
 
 ```lua
-local menu = {
-  name = 'menu',
-  load = function() print("Menu loaded!") end,
-  draw = function(pass) -- Draw your scene here end
-}
+-- src/intro.lua
+local window_manager = require'lib.window_manager'
 
-wm.register('menu', menu)
+local intro = {}
 
+function intro.load(lang)
+  print("\nLOADING INTRO")
+end
+
+function intro.update(dt)
+  -- update your scene here
+end
+
+function intro.draw(pass)
+  pass:text("This is the INTRO scene", 0, 0, -10)
+end
+
+function intro.exit()
+  -- executed when you switch to another scene
+end
 ```
 
 ### 2. Switching Scenes (with Data)
@@ -49,7 +82,6 @@ function game.load(data)
     print("Starting level: " .. data.level)
   end
 end
-
 ```
 
 ## 🔄 Transitions

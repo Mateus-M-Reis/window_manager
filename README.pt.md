@@ -1,60 +1,92 @@
-# Gerenciador de Janelas LÖVR (Window Manager)
+# LÖVR Window Manager
 
-Um gerenciador de cenas/telas leve e eficiente para **LÖVR**, projetado para uma navegação fluida entre menus, níveis e transições.
+Gerenciador de cenas e telas leve e eficiente para **LÖVR**, feito para navegação simples entre menus, níveis e transições.
 
 ## 🚀 Funcionalidades
 
-* **Transições de Cena**: Transições visuais suaves entre cenas (Fade, Slide, etc.).
-* **Passagem de Dados**: Transfira facilmente objetos de dados entre cenas através do método de ciclo de vida `load()`.
-* **Leve**: Design minimalista e sem dependências externas.
-* **Encapsulado**: Projetado para ser modular e fácil de integrar em qualquer projeto LÖVR.
+* **Transições de Cena**: Transições visuais suaves (Fade, Slide, etc.).
+* **Passagem de Dados**: Envie objetos de dados entre cenas através do método `load()`.
+* **Leve**: Design minimalista, sem dependências externas.
+* **Encapsulado**: Modular e fácil de integrar em qualquer projeto LÖVR.
 
 ## 🛠️ Instalação
 
-Basta copiar o ficheiro `init.lua` (ou `window_manager.lua`) para a pasta do seu projeto. Recomendamos utilizá-lo como um módulo:
+Coloque o módulo na sua pasta `lib/` (ou onde preferir):
 
 ```lua
-local wm = require 'window_manager.init'
-
+local window_manager = require 'lib.window_manager'
 ```
 
-## 🎮 Utilização
+## 🎮 Como usar
 
-### 1. Registar Cenas
+### 1. Registrar Cenas
+
+Registre as cenas usando `window_manager.register('nome_da_cena', require 'caminho.para.cena')`:
+
+```lua
+-- main.lua
+local window_manager = require 'lib.window_manager'
+
+function lovr.load()
+  window_manager.register('intro', require 'src.intro')
+  window_manager.register('menu', require 'src.menu')
+  window_manager.register('level', require 'src.level')
+  window_manager.switch('intro')
+end
+
+function lovr.update(dt)
+  window_manager.update(dt)
+end
+
+function lovr.draw(pass)
+  window_manager.draw(pass)
+end
+```
 
 Cada cena é um módulo Lua com funções de ciclo de vida opcionais (`load`, `update`, `draw`, `exit`).
 
 ```lua
-local menu = {
-  name = 'menu',
-  load = function() print("Menu carregado!") end,
-  draw = function(pass) -- Desenhe a sua cena aqui end
-}
+-- src/intro.lua
+local window_manager = require 'lib.window_manager'
 
-wm.register('menu', menu)
+local intro = {}
 
+function intro.load(lang)
+  print("\nCARREGANDO INTRO")
+end
+
+function intro.update(dt)
+  -- seu código de update aqui
+end
+
+function intro.draw(pass)
+  pass:text("Esta é a cena de INTRO", 0, 0, -10)
+end
+
+function intro.exit()
+  -- executado ao mudar para outra cena
+end
 ```
 
-### 2. Trocar de Cenas (com Dados)
+### 2. Trocar de Cena (com Dados)
 
-Pode passar qualquer objeto Lua (tabelas, strings, números) como parâmetro ao trocar de cena. Os dados são recebidos na função `load()` da cena de destino.
+Você pode passar qualquer objeto Lua (tabelas, strings, números) como parâmetro. O dado é recebido na função `load()` da cena de destino.
 
 ```lua
--- Mudar para a cena 'game' passando uma configuração personalizada
-wm.switch('game', 'fade', 0.5, { difficulty = 'hard', level = 1 })
+-- Troca para a cena 'game' enviando configurações customizadas
+wm.switch('game', 'fade', 0.5, { dificuldade = 'hard', nivel = 1 })
 
 -- Dentro de game.lua
 function game.load(data)
   if data then
-    print("A iniciar nível: " .. data.level)
+    print("Iniciando nível: " .. data.nivel)
   end
 end
-
 ```
 
 ## 🔄 Transições
 
-O gestor inclui transições integradas:
+O gerenciador inclui as seguintes transições nativas:
 
 * `wm.Transitions.NONE`
 * `wm.Transitions.FADE`
@@ -67,8 +99,7 @@ O gestor inclui transições integradas:
 
 | Função | Descrição |
 | --- | --- |
-| `wm.register(name, scene)` | Regista um módulo de cena. |
-| `wm.switch(name, trans, dur, data)` | Muda para uma nova cena, com transição e dados opcionais. |
-| `wm.update(dt)` | Atualiza a cena ativa e processa as transições. |
-| `wm.draw(pass)` | Renderiza a cena ativa e qualquer transição em curso. |
-
+| `wm.register(nome, cena)` | Registra um módulo de cena. |
+| `wm.switch(nome, tipo, duracao, dados)` | Troca para a cena especificada. |
+| `wm.update(dt)` | Atualiza o gerenciador e a cena atual. |
+| `wm.draw(pass)` | Desenha a cena atual com transição (se houver). |
