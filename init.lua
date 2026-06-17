@@ -1,8 +1,31 @@
--- window_manager.lua
--- WindowManager.lua
+-- init.lua
 -- A scene/screen manager for LÖVR
 
--- window_manager.lua
+---@class Scene
+---@field name? string The optional name of the scene used for debugging.
+---@field load? fun(data: any) Called when the scene is switched to. Receives custom data.
+---@field update? fun(dt: number) Called every frame to update scene logic.
+---@field draw? fun(pass: lovr.Pass) Called every frame to render the scene.
+---@field exit? fun() Called right before leaving the scene.
+---@field keypressed? fun(key: string, scancode: number, isRepeat: boolean) Forwarded keypress event.
+---@field keyreleased? fun(key: string, scancode: number) Forwarded keyrelease event.
+
+---@class TransitionState
+---@field type string The type of transition (e.g., 'fade', 'slide_left').
+---@field duration number Total duration of the transition in seconds.
+---@field elapsed number Time elapsed since the transition started.
+---@field direction 'in'|'out' The direction of the transition animation.
+---@field from? Scene The scene being transitioned away from.
+---@field to Scene The scene being transitioned into.
+
+---@class WindowManager
+---@field scenes table<string, Scene> Registered scenes dictionary.
+---@field current? Scene The currently active scene.
+---@field previous? Scene The previously active scene.
+---@field transition? TransitionState The active transition configuration, if any.
+---@field default_transition string Fallback transition type.
+---@field transition_duration number Fallback transition duration.
+---@field debug boolean Toggle for displaying on-screen debug info.
 local M = {
   scenes = {},
   current = nil,
@@ -13,6 +36,7 @@ local M = {
   debug = false
 }
 
+---@enum TransitionType
 M.Transitions = {
   NONE = 'none',
   FADE = 'fade',
@@ -22,6 +46,7 @@ M.Transitions = {
   SLIDE_DOWN = 'slide_down'
 }
 
+---@type table<string, fun(progress: number, direction: 'in'|'out'): table<string, number>>
 local transitionFunctions = {
   fade = function(progress, direction)
     local alpha = direction == 'in' and progress or (1 - progress)
@@ -45,12 +70,18 @@ local transitionFunctions = {
   end
 }
 
--- Register a scene (just stores the scene module)
+---Registers a scene module with a unique lookup name.
+---@param name string The unique identifier for this scene.
+---@param scene Scene The scene module table containing lifecycle hooks.
 function M.register(name, scene)
   M.scenes[name] = scene
 end
 
--- Switch to a scene (replaces current)
+---Switches active scenes and triggers an optional transition animation.
+---@param name string The name of the registered target scene.
+---@param transition? TransitionType The transition style to use. Defaults to `M.default_transition`.
+---@param duration? number The transition duration in seconds. Defaults to `M.transition_duration`.
+---@param data? any Arbitrary data package passed down directly to the target scene's `load` hook.
 function M.switch(name, transition, duration, data)
   local scene = M.scenes[name]
   if not scene then
@@ -61,12 +92,10 @@ function M.switch(name, transition, duration, data)
   local transitionType = transition or M.default_transition
   local transDuration = duration or M.transition_duration
 
-  -- Exit previous scene if it exists
   if previous and previous.exit then
     previous.exit()
   end
 
-  -- Set up transition
   if transitionType ~= M.Transitions.NONE then
     M.transition = {
       type = transitionType,
@@ -81,15 +110,14 @@ function M.switch(name, transition, duration, data)
   M.previous = previous
   M.current = scene
 
-  -- Load new scene if it has load function
   if scene.load then
     scene.load(data)
   end
 end
 
--- Update current scene
+---Updates timers for transitions and ticks the active scene logic.
+---@param dt number Delta time in seconds since the last frame.
 function M.update(dt)
-  -- Update transition
   if M.transition then
     M.transition.elapsed = M.transition.elapsed + dt
     if M.transition.elapsed >= M.transition.duration then
@@ -97,13 +125,13 @@ function M.update(dt)
     end
   end
 
-  -- Update current scene
   if M.current and M.current.update then
     M.current.update(dt)
   end
 end
 
--- Draw with transitions
+---Renders the current scene, wrapping it in transition transforms if active.
+---@param pass lovr.Pass The LÖVR render pass object.
 function M.draw(pass)
   if not M.current then return end
 
@@ -132,25 +160,32 @@ function M.draw(pass)
     end
   end
 
-  -- Debug info
   if M.debug and M.current then
     pass:text('Scene: ' .. (M.current.name or 'unnamed'), 0, 1.5, -3, 0.1)
   end
 end
 
--- Forward input events
+---Forwards engine keypress callbacks to the active scene.
+---@param key string The name of the key pressed.
+---@param scancode number The platform-independent scancode.
+---@param isRepeat boolean True if the key press is a repeat event.
 function M.keypressed(key, scancode, isRepeat)
   if M.current and M.current.keypressed then
     M.current.keypressed(key, scancode, isRepeat)
   end
 end
 
-function M.keyreleased(key, scancode)
+---Forwards engine keyrelease callbacks to the active scene.
+---@param key string The name of the key released.
+---@param scancode number The platform-independent scancode.
+function M.keyreleased(key)
   if M.current and M.current.keyreleased then
-    M.current.keyreleased(key, scancode)
+    M.current.keyreleased(key)
   end
 end
 
+---Toggles HUD text tracking the active scene module name.
+---@param enabled boolean
 function M.setDebug(enabled)
   M.debug = enabled
 end
