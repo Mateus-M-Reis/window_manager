@@ -26,7 +26,7 @@ jobs:
           sudo apt-get install -y luajit lua5.1 lua5.4
 
       - name: Check syntax
-        run: luac -p init.lua main.lua src/*.lua tests/run.lua
+        run: luac5.4 -p init.lua main.lua src/*.lua tests/run.lua
 
       - name: Run tests
         run: ${{ matrix.lua }} tests/run.lua
