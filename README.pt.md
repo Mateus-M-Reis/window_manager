@@ -6,6 +6,8 @@ Gerenciador de cenas e telas leve e eficiente para **LÖVR**, feito para navega�
 
 * **Transições de Cena**: Transições visuais suaves (Fade, Slide, etc.).
 * **Passagem de Dados**: Envie objetos de dados entre cenas através do método `load()`.
+* **Eventos da Engine**: Teclado, mouse, texto, foco, visibilidade e redimensionamento podem ser encaminhados para a cena ativa.
+* **Fábricas de Cenas**: Registre uma função para criar uma cena nova a cada visita.
 * **Leve**: Design minimalista, sem dependências externas.
 * **Encapsulado**: Modular e fácil de integrar em qualquer projeto LÖVR.
 
@@ -74,11 +76,16 @@ end
 
 ### 2. Trocar de Cena (com Dados)
 
-Você pode passar qualquer objeto Lua (tabelas, strings, números) como parâmetro. O dado é recebido na função `load()` da cena de destino.
+Você pode passar qualquer objeto Lua (tabelas, strings, números) como
+parâmetro. O dado é recebido na função `load()` da cena de destino.
 
 ```lua
--- Troca para a cena 'game' enviando configurações customizadas
-window_manager.switch('game', 'fade', 0.5, { dificuldade = 'hard', nivel = 1 })
+-- Troca para 'game' com transição e configuração explícitas
+window_manager.switch('game', {
+  transition = window_manager.Transitions.FADE,
+  duration = 0.5,
+  data = { dificuldade = 'hard', nivel = 1 },
+})
 
 -- Dentro de game.lua
 function game.load(data)
@@ -88,10 +95,42 @@ function game.load(data)
 end
 ```
 
-### 3. Entrada de Teclado
+A forma posicional antiga continua funcionando:
+`window_manager.switch('game', 'fade', 0.5, { dificuldade = 'hard' })`.
+Omitir as opções usa `default_transition` e `transition_duration`.
+
+### 3. Fábricas de Cenas
+
+Uma tabela registrada é um singleton, então o estado em variáveis locais do
+módulo persiste entre visitas. Registre uma função para criar uma cena nova a
+cada troca:
+
+```lua
+local function new_level()
+  local level = {timer = 0}
+
+  function level.load(data)
+    level.timer = 0
+  end
+
+  function level.update(dt)
+    level.timer = level.timer + dt
+  end
+
+  return level
+end
+
+window_manager.register('level', new_level)
+```
+
+A fábrica é chamada toda vez que a cena é ativada. Use uma tabela comum quando
+o estado compartilhado for intencional.
+
+### 4. Eventos da Engine
 
 O gerenciador não registra os callbacks da LÖVR sozinho. Repasse os eventos
-que as cenas devem receber a partir do ponto de entrada:
+que as cenas devem receber a partir do ponto de entrada. O teclado tem
+encaminhadores dedicados:
 
 ```lua
 function lovr.keypressed(key, scancode, isrepeat)
@@ -103,9 +142,36 @@ function lovr.keyreleased(key, scancode)
 end
 ```
 
-As cenas podem então implementar os hooks opcionais
-`keypressed(key, scancode, isRepeat)` e `keyreleased(key, scancode)`. Cenas que
-declaram apenas `keyreleased(key)` continuam funcionando.
+O mesmo padrão vale para os outros eventos:
+
+```lua
+function lovr.mousepressed(...) window_manager.mousepressed(...) end
+function lovr.mousereleased(...) window_manager.mousereleased(...) end
+function lovr.mousemoved(...) window_manager.mousemoved(...) end
+function lovr.wheelmoved(...) window_manager.wheelmoved(...) end
+function lovr.textinput(...) window_manager.textinput(...) end
+function lovr.focus(...) window_manager.focus(...) end
+function lovr.visible(...) window_manager.visible(...) end
+function lovr.resize(...) window_manager.resize(...) end
+```
+
+As cenas podem então implementar os hooks opcionais correspondentes:
+
+```lua
+function level.keypressed(key, scancode, isRepeat) end
+function level.mousemoved(x, y, dx, dy, istouch) end
+function level.focus(focused, display) end
+```
+
+Para um evento customizado, chame `dispatch` diretamente:
+
+```lua
+function lovr.filechanged(...)
+  window_manager.dispatch('filechanged', ...)
+end
+```
+
+Cenas que declaram apenas `keyreleased(key)` continuam funcionando.
 
 ## 🔄 Transições
 
@@ -127,13 +193,32 @@ e cai para `NONE`, em vez de deixar a tela em branco.
 
 | Função | Descrição |
 | --- | --- |
-| `window_manager.register(nome, cena)` | Registra um módulo de cena. |
-| `window_manager.switch(nome, tipo, duracao, dados)` | Troca para a cena especificada. |
+| `window_manager.register(nome, cena_ou_fabrica)` | Registra uma tabela de cena ou uma função fábrica. |
+| `window_manager.switch(nome, opcoes_ou_tipo, duracao, dados)` | Troca para uma cena usando uma tabela de opções ou argumentos posicionais. |
 | `window_manager.update(dt)` | Atualiza o gerenciador e a cena atual. |
 | `window_manager.draw(pass)` | Desenha a cena atual com transição (se houver). |
+| `window_manager.dispatch(evento, ...)` | Chama um hook opcional na cena ativa. |
 | `window_manager.keypressed(key, scancode, isRepeat)` | Repassa um key press para a cena ativa. |
 | `window_manager.keyreleased(key, scancode)` | Repassa um key release para a cena ativa. |
 | `window_manager.setDebug(enabled)` | Alterna o texto de depuração com o nome da cena. |
 
+Encaminhadores adicionais de eventos: `mousepressed`, `mousereleased`, `mousemoved`,
+`wheelmoved`, `textinput`, `focus`, `visible` e `resize`.
+
 Veja [CHANGELOG.md](CHANGELOG.md) para mudanças de comportamento e notas de
 migração.
+
+## 🧪 Desenvolvimento
+
+A suíte de testes não tem dependências externas:
+
+```sh
+luajit tests/run.lua
+lua5.4 tests/run.lua
+```
+
+A CI roda a mesma suíte com LuaJIT, Lua 5.1 e Lua 5.4.
+
+## 📄 Licença
+
+MIT — veja [LICENSE](LICENSE).
