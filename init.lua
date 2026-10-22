@@ -9,9 +9,24 @@
 ---@field exit? fun() Called right before leaving the scene.
 ---@field keypressed? fun(key: string, scancode: number, isRepeat: boolean) Forwarded keypress event.
 ---@field keyreleased? fun(key: string, scancode: number) Forwarded keyrelease event.
+---@field mousepressed? fun(x: number, y: number, button: number) Forwarded mouse press event.
+---@field mousereleased? fun(x: number, y: number, button: number) Forwarded mouse release event.
+---@field mousemoved? fun(x: number, y: number, dx: number, dy: number) Forwarded mouse movement event.
+---@field wheelmoved? fun(dx: number, dy: number) Forwarded mouse wheel event.
+---@field textinput? fun(text: string, code: number) Forwarded text input event.
+---@field focus? fun(focused: boolean, display: string) Forwarded focus event.
+---@field visible? fun(visible: boolean, display: string) Forwarded visibility event.
+---@field resize? fun(width: number, height: number) Forwarded window resize event.
+
+---@alias SceneFactory fun(): Scene
+
+---@class SwitchOptions
+---@field transition? TransitionType The transition style to use.
+---@field duration? number The transition duration in seconds.
+---@field data? any Arbitrary data passed to the target scene's `load` hook.
 
 ---@class TransitionState
----@field type string The type of transition (e.g., 'fade', 'slide_left').
+---@field type TransitionType The type of transition (e.g., 'fade', 'slide_left').
 ---@field duration number Total duration of the transition in seconds.
 ---@field elapsed number Time elapsed since the transition started.
 ---@field direction 'in'|'out' The direction of the transition animation.
@@ -19,11 +34,11 @@
 ---@field to Scene The scene being transitioned into.
 
 ---@class WindowManager
----@field scenes table<string, Scene> Registered scenes dictionary.
+---@field scenes table<string, Scene|SceneFactory> Registered scenes or factories.
 ---@field current? Scene The currently active scene.
 ---@field previous? Scene The previously active scene.
 ---@field transition? TransitionState The active transition configuration, if any.
----@field default_transition string Fallback transition type.
+---@field default_transition TransitionType Fallback transition type.
 ---@field transition_duration number Fallback transition duration.
 ---@field debug boolean Toggle for displaying on-screen debug info.
 local M = {
@@ -70,23 +85,44 @@ local transitionFunctions = {
   end
 }
 
----Registers a scene module with a unique lookup name.
+---Registers a scene or a factory that creates one.
+---Factories are called on every switch, so each visit gets a fresh scene table.
 ---@param name string The unique identifier for this scene.
----@param scene Scene The scene module table containing lifecycle hooks.
+---@param scene Scene|SceneFactory A scene table or a function returning one.
 function M.register(name, scene)
+  local sceneType = type(scene)
+  if sceneType ~= 'table' and sceneType ~= 'function' then
+    error(('Scene "%s" must be a table or a function returning a table'):format(name))
+  end
   M.scenes[name] = scene
 end
 
 ---Switches active scenes and triggers an optional transition animation.
+---Accepts positional arguments or a single options table as the second argument.
 ---Unknown transition names are reported and fall back to `M.Transitions.NONE`.
 ---@param name string The name of the registered target scene.
----@param transition? TransitionType The transition style to use. Defaults to `M.default_transition`.
+---@param transition? TransitionType|SwitchOptions The transition style, or an options table.
 ---@param duration? number The transition duration in seconds. Defaults to `M.transition_duration`.
----@param data? any Arbitrary data package passed down directly to the target scene's `load` hook.
+---@param data? any Arbitrary data package passed directly to the target scene's `load` hook.
 function M.switch(name, transition, duration, data)
-  local scene = M.scenes[name]
-  if not scene then
+  if type(transition) == 'table' then
+    local options = transition
+    transition = options.transition
+    duration = options.duration
+    data = options.data
+  end
+
+  local registered = M.scenes[name]
+  if not registered then
     error('Scene "' .. name .. '" not registered')
+  end
+
+  local scene = registered
+  if type(registered) == 'function' then
+    scene = registered()
+    if type(scene) ~= 'table' then
+      error(('Scene factory "%s" must return a table'):format(name))
+    end
   end
 
   local previous = M.current
@@ -173,23 +209,95 @@ function M.draw(pass)
   end
 end
 
+---Calls an optional hook on the active scene.
+---Use this for engine events that do not have a dedicated wrapper.
+---@param event string The scene hook name (for example, 'mousemoved').
+---@vararg any Arguments forwarded to the hook.
+---@return any result The hook's return value, if any.
+function M.dispatch(event, ...)
+  local scene = M.current
+  local handler = scene and scene[event]
+  if type(handler) == 'function' then
+    return handler(...)
+  end
+end
+
 ---Forwards engine keypress callbacks to the active scene.
 ---@param key string The name of the key pressed.
 ---@param scancode number The platform-independent scancode.
 ---@param isRepeat boolean True if the key press is a repeat event.
 function M.keypressed(key, scancode, isRepeat)
-  if M.current and M.current.keypressed then
-    M.current.keypressed(key, scancode, isRepeat)
-  end
+  return M.dispatch('keypressed', key, scancode, isRepeat)
 end
 
 ---Forwards engine keyrelease callbacks to the active scene.
 ---@param key string The name of the key released.
 ---@param scancode? number The platform-independent scancode.
 function M.keyreleased(key, scancode)
-  if M.current and M.current.keyreleased then
-    M.current.keyreleased(key, scancode)
-  end
+  return M.dispatch('keyreleased', key, scancode)
+end
+
+---Forwards engine mouse press callbacks to the active scene.
+---@param x number The x position of the mouse.
+---@param y number The y position of the mouse.
+---@param button number The mouse button that was pressed.
+---@vararg any Additional LÖVR arguments (for example, `istouch` and `presses`).
+function M.mousepressed(x, y, button, ...)
+  return M.dispatch('mousepressed', x, y, button, ...)
+end
+
+---Forwards engine mouse release callbacks to the active scene.
+---@param x number The x position of the mouse.
+---@param y number The y position of the mouse.
+---@param button number The mouse button that was released.
+---@vararg any Additional LÖVR arguments (for example, `istouch` and `presses`).
+function M.mousereleased(x, y, button, ...)
+  return M.dispatch('mousereleased', x, y, button, ...)
+end
+
+---Forwards engine mouse movement callbacks to the active scene.
+---@param x number The new x position of the mouse.
+---@param y number The new y position of the mouse.
+---@param dx number The x movement since the last event.
+---@param dy number The y movement since the last event.
+---@vararg any Additional LÖVR arguments (for example, `istouch`).
+function M.mousemoved(x, y, dx, dy, ...)
+  return M.dispatch('mousemoved', x, y, dx, dy, ...)
+end
+
+---Forwards engine mouse wheel callbacks to the active scene.
+---@param dx number The relative horizontal wheel motion.
+---@param dy number The relative vertical wheel motion.
+function M.wheelmoved(dx, dy)
+  return M.dispatch('wheelmoved', dx, dy)
+end
+
+---Forwards engine text input callbacks to the active scene.
+---@param text string The UTF-8 encoded text.
+---@param code number The unicode codepoint of the character.
+function M.textinput(text, code)
+  return M.dispatch('textinput', text, code)
+end
+
+---Forwards engine focus callbacks to the active scene.
+---@param focused boolean Whether the application is focused.
+---@param display string The display that changed focus.
+function M.focus(focused, display)
+  return M.dispatch('focus', focused, display)
+end
+
+---Forwards engine visibility callbacks to the active scene.
+---@param visible boolean Whether the application is visible.
+---@param display string The display that changed visibility.
+function M.visible(visible, display)
+  return M.dispatch('visible', visible, display)
+end
+
+---Forwards engine window resize callbacks to the active scene.
+---@param width number The new window width.
+---@param height number The new window height.
+function M.resize(width, height)
+  return M.dispatch('resize', width, height)
 end
 
 ---Toggles HUD text tracking the active scene module name.
