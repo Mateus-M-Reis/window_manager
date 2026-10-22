@@ -7,6 +7,7 @@ local intro = {}
 local timer = 0
 
 function intro.load(lang)
+  timer = 0
   print("\nLOADING INTRO")
   print("lang:", lang)
   language = lang

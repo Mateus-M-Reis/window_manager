@@ -16,3 +16,11 @@ end
 function lovr.draw(pass)
   window_manager.draw(pass)
 end
+
+function lovr.keypressed(key, scancode, isrepeat)
+  window_manager.keypressed(key, scancode, isrepeat)
+end
+
+function lovr.keyreleased(key, scancode)
+  window_manager.keyreleased(key, scancode)
+end

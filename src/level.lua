@@ -7,6 +7,7 @@ local timer = 0
 local option
 
 function M.load(data)
+  timer = 0
   print("\nLOADING LEVEL")
   print("options:\t")
   for k, v in pairs(data.option) do

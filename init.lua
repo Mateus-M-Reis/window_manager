@@ -78,6 +78,7 @@ function M.register(name, scene)
 end
 
 ---Switches active scenes and triggers an optional transition animation.
+---Unknown transition names are reported and fall back to `M.Transitions.NONE`.
 ---@param name string The name of the registered target scene.
 ---@param transition? TransitionType The transition style to use. Defaults to `M.default_transition`.
 ---@param duration? number The transition duration in seconds. Defaults to `M.transition_duration`.
@@ -92,9 +93,18 @@ function M.switch(name, transition, duration, data)
   local transitionType = transition or M.default_transition
   local transDuration = duration or M.transition_duration
 
+  if transitionType ~= M.Transitions.NONE and not transitionFunctions[transitionType] then
+    print(('window_manager: unknown transition "%s", falling back to "none"'):format(tostring(transitionType)))
+    transitionType = M.Transitions.NONE
+  end
+
   if previous and previous.exit then
     previous.exit()
   end
+
+  -- Cancel any transition that was still running, even when the new switch
+  -- uses no transition at all.
+  M.transition = nil
 
   if transitionType ~= M.Transitions.NONE then
     M.transition = {
@@ -135,29 +145,27 @@ end
 function M.draw(pass)
   if not M.current then return end
 
-  if M.transition then
-    local t = M.transition
-    local progress = math.min(t.elapsed / t.duration, 1.0)
-    local transFunc = transitionFunctions[t.type]
+  local transition = M.transition
+  local params
+  if transition then
+    local progress = transition.duration > 0 and math.min(transition.elapsed / transition.duration, 1.0) or 1.0
+    local transFunc = transitionFunctions[transition.type]
+    params = transFunc and transFunc(progress, transition.direction) or {}
+  end
 
-    if transFunc then
-      local params = transFunc(progress, t.direction)
+  if params then
+    pass:push()
+    if params.x then pass:translate(params.x, 0, 0) end
+    if params.y then pass:translate(0, params.y, 0) end
+    if params.alpha then pass:setColor(1, 1, 1, params.alpha) end
+  end
 
-      pass:push()
-      if params.x then pass:translate(params.x, 0, 0) end
-      if params.y then pass:translate(0, params.y, 0) end
-      if params.alpha then pass:setColor(1, 1, 1, params.alpha) end
+  if M.current.draw then
+    M.current.draw(pass)
+  end
 
-      if M.current.draw then
-        M.current.draw(pass)
-      end
-
-      pass:pop()
-    end
-  else
-    if M.current.draw then
-      M.current.draw(pass)
-    end
+  if params then
+    pass:pop()
   end
 
   if M.debug and M.current then
@@ -177,10 +185,10 @@ end
 
 ---Forwards engine keyrelease callbacks to the active scene.
 ---@param key string The name of the key released.
----@param scancode number The platform-independent scancode.
-function M.keyreleased(key)
+---@param scancode? number The platform-independent scancode.
+function M.keyreleased(key, scancode)
   if M.current and M.current.keyreleased then
-    M.current.keyreleased(key)
+    M.current.keyreleased(key, scancode)
   end
 end
 

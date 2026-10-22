@@ -7,6 +7,7 @@ local timer = 0
 local something
 
 function M.load(data)
+  timer = 0
   print("\nLOADING MENU")
   print("something:\t", data.something)
   something = data.something
