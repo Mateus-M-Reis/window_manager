@@ -17,6 +17,10 @@ Coloque o módulo na sua pasta `lib/` (ou onde preferir):
 local window_manager = require 'lib.window_manager'
 ```
 
+Neste repositório o módulo fica na raiz do projeto, então o `main.lua` da demo
+usa `require 'init'`. Ao copiar o módulo, use o caminho escolhido de forma
+consistente no ponto de entrada e em qualquer cena que chame o gerenciador.
+
 ## 🎮 Como usar
 
 ### 1. Registrar Cenas
@@ -74,7 +78,7 @@ Você pode passar qualquer objeto Lua (tabelas, strings, números) como parâmet
 
 ```lua
 -- Troca para a cena 'game' enviando configurações customizadas
-wm.switch('game', 'fade', 0.5, { dificuldade = 'hard', nivel = 1 })
+window_manager.switch('game', 'fade', 0.5, { dificuldade = 'hard', nivel = 1 })
 
 -- Dentro de game.lua
 function game.load(data)
@@ -84,22 +88,52 @@ function game.load(data)
 end
 ```
 
+### 3. Entrada de Teclado
+
+O gerenciador não registra os callbacks da LÖVR sozinho. Repasse os eventos
+que as cenas devem receber a partir do ponto de entrada:
+
+```lua
+function lovr.keypressed(key, scancode, isrepeat)
+  window_manager.keypressed(key, scancode, isrepeat)
+end
+
+function lovr.keyreleased(key, scancode)
+  window_manager.keyreleased(key, scancode)
+end
+```
+
+As cenas podem então implementar os hooks opcionais
+`keypressed(key, scancode, isRepeat)` e `keyreleased(key, scancode)`. Cenas que
+declaram apenas `keyreleased(key)` continuam funcionando.
+
 ## 🔄 Transições
 
 O gerenciador inclui as seguintes transições nativas:
 
-* `wm.Transitions.NONE`
-* `wm.Transitions.FADE`
-* `wm.Transitions.SLIDE_LEFT`
-* `wm.Transitions.SLIDE_RIGHT`
-* `wm.Transitions.SLIDE_UP`
-* `wm.Transitions.SLIDE_DOWN`
+* `window_manager.Transitions.NONE`
+* `window_manager.Transitions.FADE`
+* `window_manager.Transitions.SLIDE_LEFT`
+* `window_manager.Transitions.SLIDE_RIGHT`
+* `window_manager.Transitions.SLIDE_UP`
+* `window_manager.Transitions.SLIDE_DOWN`
+
+Apenas a cena de destino é animada: o `exit()` da cena anterior roda assim que
+a troca começa e ela deixa de ser desenhada. Uma nova troca cancela a
+transição em andamento. Um nome de transição desconhecido é avisado no console
+e cai para `NONE`, em vez de deixar a tela em branco.
 
 ## 📖 Referência da API
 
 | Função | Descrição |
 | --- | --- |
-| `wm.register(nome, cena)` | Registra um módulo de cena. |
-| `wm.switch(nome, tipo, duracao, dados)` | Troca para a cena especificada. |
-| `wm.update(dt)` | Atualiza o gerenciador e a cena atual. |
-| `wm.draw(pass)` | Desenha a cena atual com transição (se houver). |
+| `window_manager.register(nome, cena)` | Registra um módulo de cena. |
+| `window_manager.switch(nome, tipo, duracao, dados)` | Troca para a cena especificada. |
+| `window_manager.update(dt)` | Atualiza o gerenciador e a cena atual. |
+| `window_manager.draw(pass)` | Desenha a cena atual com transição (se houver). |
+| `window_manager.keypressed(key, scancode, isRepeat)` | Repassa um key press para a cena ativa. |
+| `window_manager.keyreleased(key, scancode)` | Repassa um key release para a cena ativa. |
+| `window_manager.setDebug(enabled)` | Alterna o texto de depuração com o nome da cena. |
+
+Veja [CHANGELOG.md](CHANGELOG.md) para mudanças de comportamento e notas de
+migração.

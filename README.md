@@ -17,6 +17,11 @@ Simply drop the module into your `lib/` folder or whatever directory you prefer.
 local window_manager = require 'lib.window_manager'
 ```
 
+In this repository the module lives at the project root, so the demo's
+`main.lua` uses `require 'init'` instead. When vendoring the module, use the
+path you chose consistently in your entry point and in any scene that calls
+the manager.
+
 ## 🎮 Usage
 
 ### 1. Registering Scenes
@@ -74,7 +79,7 @@ You can pass any Lua object (tables, strings, numbers) as a parameter when switc
 
 ```lua
 -- Switch to 'game' scene passing custom configuration
-wm.switch('game', 'fade', 0.5, { difficulty = 'hard', level = 1 })
+window_manager.switch('game', 'fade', 0.5, { difficulty = 'hard', level = 1 })
 
 -- Inside game.lua
 function game.load(data)
@@ -84,23 +89,53 @@ function game.load(data)
 end
 ```
 
+### 3. Keyboard Input
+
+The manager does not register LÖVR callbacks by itself. Forward the events
+you want scenes to receive from your entry point:
+
+```lua
+function lovr.keypressed(key, scancode, isrepeat)
+  window_manager.keypressed(key, scancode, isrepeat)
+end
+
+function lovr.keyreleased(key, scancode)
+  window_manager.keyreleased(key, scancode)
+end
+```
+
+Scenes can then implement the optional `keypressed(key, scancode, isRepeat)`
+and `keyreleased(key, scancode)` hooks. Scenes that only declare
+`keyreleased(key)` continue to work.
+
 ## 🔄 Transitions
 
 The manager includes built-in transitions:
 
-* `wm.Transitions.NONE`
-* `wm.Transitions.FADE`
-* `wm.Transitions.SLIDE_LEFT`
-* `wm.Transitions.SLIDE_RIGHT`
-* `wm.Transitions.SLIDE_UP`
-* `wm.Transitions.SLIDE_DOWN`
+* `window_manager.Transitions.NONE`
+* `window_manager.Transitions.FADE`
+* `window_manager.Transitions.SLIDE_LEFT`
+* `window_manager.Transitions.SLIDE_RIGHT`
+* `window_manager.Transitions.SLIDE_UP`
+* `window_manager.Transitions.SLIDE_DOWN`
+
+Only the incoming scene is animated: the outgoing scene's `exit()` hook runs
+as soon as the switch begins and it is no longer drawn. Starting a new switch
+cancels any transition that is still in flight. An unknown transition name is
+reported to the console and falls back to `NONE` instead of leaving the screen
+blank.
 
 ## 📖 API Reference
 
 | Function | Description |
 | --- | --- |
-| `wm.register(name, scene)` | Registers a scene module. |
-| `wm.switch(name, trans, dur, data)` | Switches to a new scene, with optional transition and data. |
-| `wm.update(dt)` | Updates the active scene and handles transitions. |
-| `wm.draw(pass)` | Renders the active scene and any active transition. |
+| `window_manager.register(name, scene)` | Registers a scene module. |
+| `window_manager.switch(name, trans, dur, data)` | Switches to a new scene, with optional transition and data. |
+| `window_manager.update(dt)` | Updates the active scene and handles transitions. |
+| `window_manager.draw(pass)` | Renders the active scene and any active transition. |
+| `window_manager.keypressed(key, scancode, isRepeat)` | Forwards a key press to the active scene. |
+| `window_manager.keyreleased(key, scancode)` | Forwards a key release to the active scene. |
+| `window_manager.setDebug(enabled)` | Toggles the on-screen scene name overlay. |
+
+See [CHANGELOG.md](CHANGELOG.md) for behavior changes and migration notes.
 
