@@ -7,6 +7,22 @@ does not use tagged releases yet, so entries are grouped by change set.
 
 Changes since `bbbc7ae` (`add lsp annotations`).
 
+### Added
+
+- **Options-table `switch()`.** The preferred form is now
+  `window_manager.switch('level', { transition = 'fade', duration = 0.4, data = ... })`.
+  The existing positional signature remains supported.
+- **Generic event forwarding.** `window_manager.dispatch(event, ...)` calls an
+  optional hook on the active scene. Dedicated wrappers are available for
+  keyboard, mouse, wheel, text, focus, visibility, and resize events.
+- **Scene factories.** `register()` now accepts a function returning a scene
+  table. The factory is invoked on every switch, so each visit starts with
+  fresh state.
+- **Regression tests and CI.** `tests/run.lua` runs with LuaJIT, Lua 5.1, and
+  Lua 5.4; `.github/workflows/ci.yml` runs the suite on pushes and pull
+  requests.
+- **MIT license.**
+
 ### Fixed
 
 - **Keyboard events now reach scenes.** `main.lua` forwards
@@ -25,9 +41,9 @@ Changes since `bbbc7ae` (`add lsp annotations`).
 
 ### Migration notes
 
-No public function was removed or renamed, and existing calls to
-`register`, `switch`, `update`, `draw`, and `setDebug` keep working. Projects
-upgrading from `bbbc7ae` should check the following:
+No public function was removed or renamed, and existing calls to `register`,
+`switch`, `update`, `draw`, and `setDebug` keep working. Projects upgrading
+from `bbbc7ae` should check the following:
 
 1. **Add keyboard forwarding if you use scene keyboard hooks.** The manager
    never registered LÖVR callbacks by itself, so this was already required;
@@ -58,6 +74,16 @@ upgrading from `bbbc7ae` should check the following:
    `keyreleased(key)` continue to work; the new `scancode` argument is
    appended, so one-argument handlers are unaffected.
 
+5. **The new APIs are optional.** Keep using positional `switch()` calls and
+   table scenes if that fits your project. To receive mouse, text, focus,
+   visibility, or resize events, forward them from your entry point or call
+   `dispatch()` directly (see the README).
+
+6. **Invalid registrations now fail earlier.** `register()` accepts only a
+   table or a function; passing another value raises an error at
+   registration time instead of on the first switch. Valid registrations are
+   unaffected.
+
 ### Compatibility
 
 - `register`, `switch`, `update`, `draw`, and `setDebug` keep their existing
@@ -65,3 +91,4 @@ upgrading from `bbbc7ae` should check the following:
 - `switch()` still accepts `nil` for the transition and duration.
 - `window_manager.Transitions` values and built-in transition names are
   unchanged.
+- Existing scene tables work exactly as before; factories are opt-in.
